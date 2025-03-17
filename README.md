@@ -1,3 +1,3 @@
 # Docs repository
 
-## Docker best practices for Node.js applications ./docs/docker-best-practices.md
+## Docker best practices for Node.js applications ./docker-best-practices.md
