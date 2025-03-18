@@ -1,6 +1,6 @@
 # Docker Best Practices for Node.js Applications
 
-Docker is a powerful tool for containerizing applications, and when using it with Node.js, following best practices ensures optimal performance, security, and maintainability. Below are some key best practices with examples to help you build efficient and secure Node.js applications using Docker.
+Docker is a powerful tool for containerizing applications and when using it with Node.js, following best practices ensures optimal performance, security and maintainability. Below are some key best practices with examples to help you build efficient and secure Node.js applications using Docker.
 
 ### 1. Use a Minimal and Official Base Image
 
@@ -91,7 +91,8 @@ COPY package.json yarn.lock ./
 RUN yarn install
 COPY . .
 ```
-Such approach will help you to avoid unnecessary npm install on every change in your code which ensures faster builds and lower image size.
+Such approach will help you to avoid unnecessary package installation on every change in your code which ensures faster builds and lower image size.
+Read more about cache here: https://docs.docker.com/build/cache/optimize/
 
 ### 6. Use Environment Variables for Configuration
 Do not hardcode configuration values in your Dockerfile or application code. Use environment variables to pass configuration values to your application. This makes your application more flexible and secure.
@@ -106,7 +107,7 @@ docker build --build-arg NODE_ENV=development -t myapp .
 ```
 
 ### 7. Use Docker Secrets for Sensitive Data
-Avoid storing sensitive information such as API keys, database passwords, or credentials in environment variables or the Docker image. Instead, use Docker secrets.
+Avoid storing sensitive information such as API keys, database passwords or credentials in environment variables or the Docker image. Instead, use Docker secrets.
 
 ```Dockerfile
 # Secret is ephemeral, so we need to set it as an environment variable to satisfy yarn build
@@ -123,7 +124,7 @@ docker run --secret id=SOME_SECRET_TOKEN myapp
 More about build secrets you can find [here](https://docs.docker.com/build/building/secrets/)
 
 ### 8. Use ephemeral containers for your application
-Make sure that your application is stateless and does not store any data in the container. This will allow you to scale your application horizontally and make it more resilient.
+Make sure that your application is stateless and does not store any data in the container. This means that you can destroy your container at any time without losing any data. This will allow you to scale your application horizontally and make it more resilient.
 
 ### 9. Scan your Docker images for vulnerabilities
 Use tools like [Trivy](https://trivy.dev/latest/) to scan your Docker images for vulnerabilities. This will help you identify and fix security issues before deploying your application.
@@ -147,6 +148,11 @@ updates:
       prefix: 'build(docker)'
 ```
 
+Additionally, you can update you base image with:
+```Dockerfile
+RUN apk upgrade --no-cache
+```
+
 ### 11. Choose the Right Base Image for Your Use Case
 Not all applications require the same base image. Using the right image for your specific use case can improve performance and security.
 
@@ -161,7 +167,7 @@ CMD ["nginx", "-g", "daemon off;"]
 
 ### Conclusion
 
-Following these best practices ensures your Node.js applications run efficiently and securely inside Docker containers. By using minimal images, multi-stage builds, caching strategies, running as a non-root user, securely managing secrets, passing environment variables via build arguments, and selecting the right base image for your use case, you create a more robust and scalable environment.
+Following these best practices ensures your Node.js applications run efficiently and securely inside Docker containers. By using minimal images, multi-stage builds, caching strategies, running as a non-root user, securely managing secrets, passing environment variables via build arguments and selecting the right base image for your use case, you create a more robust and scalable environment.
 
 Below are two examples of full Dockerfile for Node.js application:
 
@@ -170,7 +176,7 @@ Docker file for Nestjs/Express application:
 ```Dockerfile
 ARG NODE_VERSION=22.14.0
 
-FROM node:${NODE_VERSION}-alpine AS build
+FROM node:${NODE_VERSION}-alpine AS builder
 
 WORKDIR /usr/src/app
 
@@ -189,7 +195,7 @@ RUN yarn build
 # remove development dependencies
 RUN yarn install --production
 
-FROM node:${NODE_VERSION}-alpine AS runtime
+FROM node:${NODE_VERSION}-alpine AS runner
 
 RUN apk upgrade --no-cache
 RUN apk add --no-cache curl bash
@@ -200,10 +206,10 @@ ENV NODE_ENV=${NODE_ENV}
 
 WORKDIR /usr/src/app
 
-COPY --from=build --chown=node:node /usr/src/app/package.json ./
-COPY --from=build --chown=node:node /usr/src/app/yarn.lock ./
-COPY --from=build --chown=node:node /usr/src/app/dist ./dist
-COPY --from=build --chown=node:node /usr/src/app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /usr/src/app/package.json ./
+COPY --from=builder --chown=node:node /usr/src/app/yarn.lock ./
+COPY --from=builder --chown=node:node /usr/src/app/dist ./dist
+COPY --from=builder --chown=node:node /usr/src/app/node_modules ./node_modules
 
 USER node
 
@@ -217,7 +223,7 @@ Dockerfile for React application:
 
 ARG NODE_VERSION=22.14.0
 
-FROM node:${NODE_VERSION}-alpine AS build
+FROM node:${NODE_VERSION}-alpine AS builder
 
 WORKDIR /app
 
@@ -240,7 +246,7 @@ USER root
 RUN apk update && apk upgrade
 RUN apk add --no-cache bash curl
 
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # remove root access
 USER nginx
