@@ -7,14 +7,9 @@ Docker is a powerful tool for containerizing applications, and when using it wit
 Choosing a lightweight base image reduces the attack surface and improves performance. The official Node.js images provide optimized environments. Which provide you better security, performance, compressed image size and maintainability.
 
 ```Dockerfile
+# Use official Node.js image https://hub.docker.com/_/node
 FROM node:22-alpine
-WORKDIR /app
-COPY package.json yarn-lock.json ./
-# remove development dependencies
-RUN yarn install --production
-COPY . .
-CMD ["node", "server.js"]
-EXPOSE 3000
+# rest of your docker file
 ```
 
 ### 2. Leverage Multi-Stage Builds
@@ -22,19 +17,24 @@ EXPOSE 3000
 Multi-stage builds help keep your final image clean and small by separating the build and runtime environments. This reduces the final image size and improves security. Less packages means less vulnerabilities.
 
 ```Dockerfile
+# stage 1 - build your application
 FROM node:22-alpine AS builder
-WORKDIR /app
-COPY package.json yarn-lock.json ./
+
+# prepare your build
+COPY package.json yarn.lock ./
 RUN yarn install
 COPY . .
+# build your application
 RUN yarn build
 # remove development dependencies
 RUN yarn install --production
 
-FROM node:22-alpine
-WORKDIR /app
-COPY --from=builder /app .
-COPY --from=builder /app/node_modules ./node_modules
+# stage 2 - run your application - only production dependency needed
+FROM node:22-alpine AS runner
+
+COPY --from=builder / .
+COPY --from=builder /node_modules ./node_modules
+
 CMD ["node", "server.js"]
 EXPOSE 3000
 ```
@@ -59,12 +59,14 @@ This will allow you to follow principle of least privilege.
 
 ```Dockerfile
 FROM node:22-alpine
-WORKDIR /app
+
 USER root
-# some commands need root access
+# some commands which needs root access
 RUN touch /app/test.txt
+# back to non-root user
 USER node
-COPY package.json yarn-lock.json ./
+# COPY will use node user privileges
+COPY package.json yarn.lock ./
 # remove development dependencies
 RUN yarn install --production
 COPY . .
@@ -79,11 +81,13 @@ For example ordering COPY and RUN commands efficiently ensures Docker can reuse 
 Bad example:
 ```Dockerfile
 COPY . .
+# this step will never use cache, if any file will be changed
 RUN yarn install
 ```
 Good example:
 ```Dockerfile
-COPY package.json yarn-lock.json ./
+COPY package.json yarn.lock ./
+# this step will use cache until package.json or yarn.lock will be changed (package will be updated)
 RUN yarn install
 COPY . .
 ```
@@ -111,7 +115,6 @@ ENV SOME_SECRET_TOKEN=""
 # Getting secret from the secret store - is available only in this line (layer)
 RUN --mount=type=secret,id=SOME_SECRET_TOKEN,env=SOME_SECRET_TOKEN \
     yarn install
-
 ```
 then you can run your container with:
 ```shell
@@ -144,10 +147,7 @@ updates:
       prefix: 'build(docker)'
 ```
 
-### 11. Use Images from Trusted Sources
-Always use images from trusted sources like Docker Hub, AWS ECR, or Azure Container Registry. Avoid using images from unknown sources to reduce the risk of security vulnerabilities.
-
-### 12. Choose the Right Base Image for Your Use Case
+### 11. Choose the Right Base Image for Your Use Case
 Not all applications require the same base image. Using the right image for your specific use case can improve performance and security.
 
 Example:
@@ -210,7 +210,7 @@ USER node
 CMD ["node", "dist/main"]
 ```
 
-Dockerfile for react application:
+Dockerfile for React application:
 
 ```Dockerfile
 # build environment
@@ -228,7 +228,7 @@ COPY . .
 RUN yarn build
 
 # production environment
-FROM nginx/nginx-unprivileged:1.27.4-alpine
+FROM nginx/nginx-unprivileged:1.27.4-alpine AS runner
 
 WORKDIR /app
 
