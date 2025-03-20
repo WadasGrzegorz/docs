@@ -229,6 +229,8 @@ WORKDIR /app
 
 COPY package.json yarn.lock ./
 
+RUN yarn install --frozen-lock-file
+
 COPY . .
 
 RUN yarn build
